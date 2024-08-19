@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>智慧校园</title>
+  <!-- 引入css样式 -->
+  <link rel="stylesheet" href="https://a.amap.com/jsapi_demos/static/demo-center/css/demo-center.css" />
+  <link rel="stylesheet" href="./css.css">
+  <!-- 引入高德code和key -->
+  <script type="text/javascript">
+    window._AMapSecurityConfig = {
+      securityJsCode: "639f6071d2f8eedaae1948009bbcd42e",
+    };
+  </script>
+  <script type="text/javascript"
+    src="https://webapi.amap.com/maps?v=2.0&key=3ab3c2dea48eef0ebee2d467ae6d0742&plugin=AMap.GeoJSON">
+  </script>
+  <!-- 引入封装函数 -->
+  <script src="./store.js"></script>
+</head>
+
+<body>
+  <!-- 设置地图容器 -->
+  <div id="container"></div>
+  <!-- 设置选项卡 -->
+  <div class="info" style="width: auto;">双击地图标注地点 点击标注打卡</div>
+  <div class="input-card" style="width: auto;">
+    <h4>这里推荐浏览路线</h4>
+    <div class="input-item">
+      <button class="btn" onclick="start_animation()">开始动画</button>
+    </div>
+  </div>
+  <div id="panel"></div>
+  <!-- 加载地图 -->
+  <script>
+    var map = new AMap.Map('container', {
+      viewMode: '3D',
+      rotateEnable: true,
+      pitchEnable: true,
+      doubleClickZoom: false,
+      zoom: 16,
+      center: [108.903, 34.37]
+    })
+  </script>
+  <!-- 使用控件 -->
+  <script>
+    AMap.plugin(['AMap.ToolBar', 'AMap.Scale', 'AMap.ControlBar', 'AMap.MapType'], function () {
+      map.addControl(new AMap.ToolBar({
+        position: { bottom: '50px', left: '10px' }
+      }))
+      map.addControl(new AMap.Scale())
+      map.addControl(new AMap.ControlBar({
+        position: { top: '120px', left: '10px' }
+      }))
+      map.addControl(new AMap.MapType({
+        position: { top: '10px', left: '100px' }
+      }))
+    })
+  </script>
+
+  <script>
+    // 定义全局变量，保存GeoJSON
+    var geojson = new AMap.GeoJSON({
+      geoJSON: null,
+    })
+    // 如果getdata返回的数据不为空数组，那么
+    if (JSON.stringify(getdata()) != '[]') {
+      // 导入数据
+      geojson.importData(getdata())
+      // 恢复导入数据的点击事件
+      geojson.eachOverlay(function (_marker) {
+        _marker.on('click', function (ev) {
+          var ext = _marker.getExtData()
+          var clicks = ++ext.Properties.clicks
+          savedata(geojson.toGeoJSON())
+          // 显示打卡信息窗口
+          var infowindow = new AMap.InfoWindow({
+            anchor: 'top-center',
+            content: `<div>打卡${clicks}次</div>`,
+            closeWhenClickMap: true,
+          })
+          infowindow.open(map, this.getPosition());
+        })
+      })
+    }
+    // 在地图上设置覆盖物
+    map.add(geojson)
+    // 鼠标双击标点
+    map.on('dblclick', function (ev) {
+      var marker = new AMap.Marker({
+        position: ev.lnglat,
+        extData: {
+          Properties: {
+            marker_id: geojson.getOverlays().length + 1,
+            clicks: 0,
+          }
+        }
+      })
+      // 覆盖物点击事件
+      marker.on('click', function (ev) {
+        var ext = marker.getExtData()
+        var clicks = ++ext.Properties.clicks
+        savedata(geojson.toGeoJSON())
+        // 显示打卡信息窗口
+        var infowindow = new AMap.InfoWindow({
+          anchor: 'top-center',
+          content: `<div>打卡${clicks}次</div>`,
+          closeWhenClickMap: true,
+        })
+        infowindow.open(map, this.getPosition());
+      })
+      // 将覆盖物（点）添加到geojson集合中
+      geojson.addOverlay(marker)
+      console.log(geojson)
+      // 保存数据
+      savedata(geojson.toGeoJSON())
+    })
+    //实现路径规划 
+    function start_animation() {
+      AMap.plugin(["AMap.Driving"], function () { 
+        var driving = new AMap.Driving({
+          map: map,
+          panel:'panel',
+          policy: AMap.DrivingPolicy.LEAST_TIME
+        });
+        var opt = {
+          waypoints:[],
+        }
+        geojson.eachOverlay(function (item) {
+          opt.waypoints.push(item.getPosition())
+        })
+        //根据起终点坐标规划驾车路线
+        driving.search(new AMap.LngLat(108.909314,34.375514), new AMap.LngLat(108.894664,34.368572),opt,function(status,result){
+          if (status == 'complete') {
+            console.log('成功')
+          } else {
+            console.log('失败')
+          }
+        });
+      });
+    }
+  </script>
+
+
+</body>
+
+</html>
